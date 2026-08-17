@@ -18,8 +18,8 @@ import requests
 from utils import log
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Use groq/compound (best for structured JSON output), or set via environment variable
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "groq/compound")
+# Use llama-3.1-8b-instant (only enabled model on free tier), or set via environment variable
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 
 SYSTEM_PROMPT = """You write short "did you know" history scripts for vertical YouTube
 Shorts, AND the YouTube publishing metadata for that video.
@@ -56,6 +56,8 @@ Rules for the metadata:
   (always include #Shorts and #History).
 - "tags": 8-15 short plain keyword phrases for YouTube's search tags field (topics,
   era, names, places involved) — no hashtags, no punctuation, just the bare phrases.
+
+IMPORTANT: Always output valid, complete JSON with no unterminated strings.
 """
 
 
@@ -84,8 +86,8 @@ def generate_script(topic: str) -> dict:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Topic: {topic}"},
         ],
-        "temperature": 0.8,
-        "max_tokens": 1100,
+        "temperature": 0.7,
+        "max_tokens": 1200,
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
