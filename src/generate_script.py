@@ -18,7 +18,8 @@ import requests
 from utils import log
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Use mixtral-8x7b-32768 which is widely available, or set via environment variable
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "mixtral-8x7b-32768")
 
 SYSTEM_PROMPT = """You write short "did you know" history scripts for vertical YouTube
 Shorts, AND the YouTube publishing metadata for that video.
