@@ -18,8 +18,8 @@ import requests
 from utils import log
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Use openai/gpt-oss-20b (optimized for structured output), or set via environment variable
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
+# Use groq/compound (best for structured JSON output), or set via environment variable
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "groq/compound")
 
 SYSTEM_PROMPT = """You write short "did you know" history scripts for vertical YouTube
 Shorts, AND the YouTube publishing metadata for that video.
