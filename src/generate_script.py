@@ -95,6 +95,8 @@ def generate_script(topic: str) -> dict:
         resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
         log.info("Response status code: %d", resp.status_code)
         log.info("Response headers: %s", dict(resp.headers))
+        log.info("Response text length: %d bytes", len(resp.text))
+        log.info("Response text (first 500 chars): %s", resp.text[:500])
         
         resp.raise_for_status()
     except requests.exceptions.HTTPError as e:
@@ -102,7 +104,13 @@ def generate_script(topic: str) -> dict:
         log.error("Response text: %s", resp.text)
         raise
     
+    # Check if response is actually JSON
+    if not resp.text.strip():
+        raise ValueError("API returned empty response!")
+    
+    log.info("Parsing JSON response...")
     raw = resp.json()["choices"][0]["message"]["content"]
+    log.info("Raw model output (first 500 chars): %s", raw[:500])
 
     data = json.loads(_extract_json(raw))
 
