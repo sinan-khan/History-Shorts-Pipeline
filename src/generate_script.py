@@ -67,7 +67,16 @@ def _extract_json(text: str) -> str:
 
 def generate_script(topic: str) -> dict:
     """Call Groq's chat completion API and return {title, description, tags, beats}."""
-    api_key = os.environ["GROQ_API_KEY"]
+    api_key = os.environ.get("GROQ_API_KEY")
+    
+    # Debug: check if API key is set
+    if not api_key:
+        raise ValueError("GROQ_API_KEY environment variable is not set!")
+    
+    log.info("GROQ_API_KEY is set: %s", "***" + api_key[-4:] if api_key else "NOT SET")
+    log.info("Using endpoint: %s", GROQ_API_URL)
+    log.info("Using model: %s", GROQ_MODEL)
+    
     payload = {
         "model": GROQ_MODEL,
         "messages": [
@@ -80,8 +89,18 @@ def generate_script(topic: str) -> dict:
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     log.info("Requesting script + metadata for topic: %s", topic)
-    resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
-    resp.raise_for_status()
+    
+    try:
+        resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
+        log.info("Response status code: %d", resp.status_code)
+        log.info("Response headers: %s", dict(resp.headers))
+        
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        log.error("HTTP Error: %s", str(e))
+        log.error("Response text: %s", resp.text)
+        raise
+    
     raw = resp.json()["choices"][0]["message"]["content"]
 
     data = json.loads(_extract_json(raw))
