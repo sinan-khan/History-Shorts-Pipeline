@@ -18,8 +18,11 @@ import requests
 from utils import log
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Use llama-3.1-8b-instant (only enabled model on free tier), or set via environment variable
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+# llama-3.3-70b-versatile was shut down by Groq on 2026-08-16. Groq's own migration
+# guidance points to openai/gpt-oss-120b as the closest replacement. Override with
+# GROQ_MODEL if you'd rather use openai/gpt-oss-20b (faster/cheaper) or another model —
+# check https://console.groq.com/docs/models for the current list.
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 SYSTEM_PROMPT = """You write short "did you know" history scripts for vertical YouTube
 Shorts, AND the YouTube publishing metadata for that video.
@@ -56,30 +59,22 @@ Rules for the metadata:
   (always include #Shorts and #History).
 - "tags": 8-15 short plain keyword phrases for YouTube's search tags field (topics,
   era, names, places involved) — no hashtags, no punctuation, just the bare phrases.
-
-IMPORTANT: Always output valid, complete JSON with no unterminated strings.
 """
 
 
 def _extract_json(text: str) -> str:
     """Strip markdown code fences if the model adds them anyway."""
     text = text.strip()
+    match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+    if match:
+        return match.group(1)
     fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
     return fence.group(1) if fence else text
 
 
 def generate_script(topic: str) -> dict:
     """Call Groq's chat completion API and return {title, description, tags, beats}."""
-    api_key = os.environ.get("GROQ_API_KEY")
-    
-    # Debug: check if API key is set
-    if not api_key:
-        raise ValueError("GROQ_API_KEY environment variable is not set!")
-    
-    log.info("GROQ_API_KEY is set: %s", "***" + api_key[-4:] if api_key else "NOT SET")
-    log.info("Using endpoint: %s", GROQ_API_URL)
-    log.info("Using model: %s", GROQ_MODEL)
-    
+    api_key = os.environ["GROQ_API_KEY"]
     payload = {
         "model": GROQ_MODEL,
         "messages": [
@@ -87,32 +82,15 @@ def generate_script(topic: str) -> dict:
             {"role": "user", "content": f"Topic: {topic}"},
         ],
         "temperature": 0.7,
-        "max_tokens": 1200,
+        "max_tokens": 3000,
+        "response_format": {"type": "json_object"},
     }
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     log.info("Requesting script + metadata for topic: %s", topic)
-    
-    try:
-        resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
-        log.info("Response status code: %d", resp.status_code)
-        log.info("Response headers: %s", dict(resp.headers))
-        log.info("Response text length: %d bytes", len(resp.text))
-        log.info("Response text (first 500 chars): %s", resp.text[:500])
-        
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        log.error("HTTP Error: %s", str(e))
-        log.error("Response text: %s", resp.text)
-        raise
-    
-    # Check if response is actually JSON
-    if not resp.text.strip():
-        raise ValueError("API returned empty response!")
-    
-    log.info("Parsing JSON response...")
+    resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
+    resp.raise_for_status()
     raw = resp.json()["choices"][0]["message"]["content"]
-    log.info("Raw model output (first 500 chars): %s", raw[:500])
 
     data = json.loads(_extract_json(raw))
 
