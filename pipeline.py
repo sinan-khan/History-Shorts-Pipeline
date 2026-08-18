@@ -28,6 +28,9 @@ ROOT = Path(__file__).resolve().parent.parent
 TOPICS_FILE = ROOT / "config" / "topics.json"
 STATE_FILE = ROOT / "config" / "state.json"
 
+# Read Groq model from environment variable, defaulting to openai/gpt-oss-120b
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
 SOURCE_CREDIT = "\n\nHistorical footage sourced from public-domain archives via the Internet Archive."
 
 
@@ -65,6 +68,7 @@ def build_video(topic: str, work_dir: Path) -> tuple[Path, dict]:
 def main() -> None:
     forced_topic = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].strip() else None
     topic = forced_topic or get_next_topic(TOPICS_FILE, STATE_FILE)
+    log.info("=== Using Groq Model: %s ===", GROQ_MODEL)
     log.info("=== Building history short: %s ===", topic)
 
     with tempfile.TemporaryDirectory(prefix="history-shorts-") as tmp:
