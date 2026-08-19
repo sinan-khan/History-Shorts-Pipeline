@@ -6,43 +6,54 @@ from utils import get_duration, log, run
 SHORT_SIZE=(1080,1920)
 LONG_SIZE=(1920,1080)
 
+
+def _short_filter(width:int,height:int)->str:
+    # Preserve the complete archival frame. A softly blurred/darkened copy fills
+    # the vertical canvas, while the sharp original sits centered on top.
+    return (f"split=2[bg][fg];"
+            f"[bg]scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},"
+            f"gblur=sigma=28,eq=brightness=-0.16:saturation=0.85[bg2];"
+            f"[fg]scale={width}:{height}:force_original_aspect_ratio=decrease[fg2];"
+            f"[fg2]eq=contrast=1.05:saturation=1.05[fg3];"
+            f"[bg2][fg3]overlay=(W-w)/2:(H-h)/2,"
+            f"setsar=1,format=yuv420p")
+
+
 def _trim_or_loop_to_duration(src:Path,dest:Path,target_duration:float,long_form:bool=False)->None:
     width,height=LONG_SIZE if long_form else SHORT_SIZE
     src_duration=get_duration(src)
-    if long_form:
-        vf=f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
-    else:
-        # Do NOT stretch/crop a 16:9 archive frame into 9:16. Fit it inside the
-        # vertical canvas, preserving the whole image, with a blurred background.
-        vf=(f"split=2[bg][fg];[bg]scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height},gblur=sigma=24,eq=brightness=-0.12[bg2];"
-            f"[fg]scale={width}:{height}:force_original_aspect_ratio=decrease[fg2];"
-            f"[bg2][fg2]overlay=(W-w)/2:(H-h)/2")
+    vf=f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}" if long_form else _short_filter(width,height)
     if src_duration>=target_duration:
-        start=min(3.0,max(0.0,src_duration-target_duration))
+        # Start near the beginning so the source's establishing shot is not lost.
+        start=0.5 if src_duration>target_duration+0.5 else 0.0
         cmd=["ffmpeg","-y","-ss",str(start),"-i",str(src),"-t",str(target_duration),"-an","-vf",vf,"-c:v","libx264","-crf","18","-preset","veryfast","-pix_fmt","yuv420p",str(dest)]
     else:
         cmd=["ffmpeg","-y","-stream_loop","-1","-i",str(src),"-t",str(target_duration),"-an","-vf",vf,"-c:v","libx264","-crf","18","-preset","veryfast","-pix_fmt","yuv420p",str(dest)]
     run(cmd)
 
+
 def _mux_beat(video_only:Path,audio:Path,dest:Path)->None:
     run(["ffmpeg","-y","-i",str(video_only),"-i",str(audio),"-c:v","copy","-c:a","aac","-b:a","192k","-shortest",str(dest)])
+
 
 def _write_srt(beats:list[dict],dest:Path)->None:
     def fmt(t:float)->str:
         h,rem=divmod(t,3600);m,s=divmod(rem,60);ms=int((s-int(s))*1000)
         return f"{int(h):02d}:{int(m):02d}:{int(s):02d},{ms:03d}"
-    lines=[];t=0.0
-    for i,beat in enumerate(beats,1):
-        # Keep captions concise: split narration into readable 2-line chunks.
+    lines=[];t=0.0;cue=1
+    for beat in beats:
         words=beat["line"].split()
-        chunks=[" ".join(words[j:j+8]) for j in range(0,len(words),8)] or [beat["line"]]
+        # 5-7 words per cue gives Shorts viewers time to read without covering
+        # the entire frame. Keep each cue to at most two visual lines.
+        chunk_size=6 if not len(words)>24 else 7
+        chunks=[" ".join(words[j:j+chunk_size]) for j in range(0,len(words),chunk_size)] or [beat["line"]]
         chunk_duration=beat["duration"]/len(chunks)
         for chunk in chunks:
             start,end=t,t+chunk_duration
-            lines += [str(len(lines)//4+1),f"{fmt(start)} --> {fmt(end)}",chunk,""]
-            t=end
+            lines += [str(cue),f"{fmt(start)} --> {fmt(end)}",chunk,""]
+            cue+=1;t=end
     dest.write_text("\n".join(lines),encoding="utf-8")
+
 
 def assemble(beats:list[dict],footage_paths:list[Path],work_dir:Path,out_path:Path,long_form:bool=False)->Path:
     beat_clips=[]
@@ -58,11 +69,12 @@ def assemble(beats:list[dict],footage_paths:list[Path],work_dir:Path,out_path:Pa
     if long_form:
         style="FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=65,MarginL=80,MarginR=80"
     else:
-        # Short captions are intentionally small and confined to the lower safe area.
-        style="FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00101010,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=260,MarginL=90,MarginR=90"
-    run(["ffmpeg","-y","-i",str(concatenated),"-vf",f"subtitles={srt_path}:force_style='{style}'","-c:v","libx264","-crf","18","-preset","medium","-c:a","aac","-b:a","192k","-movflags","+faststart",str(out_path)])
+        # Clean Shorts caption treatment: small, centered, safely above YouTube UI.
+        style="FontSize=17,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=330,MarginL=120,MarginR=120"
+    run(["ffmpeg","-y","-i",str(concatenated),"-vf",f"subtitles={srt_path}:force_style='{style}'","-c:v","libx264","-crf","18","-preset","medium","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-movflags","+faststart",str(out_path)])
     log.info("Final %s video written to %s","long-form" if long_form else "Short",out_path)
     return out_path
+
 
 def make_thumbnail(video_path:Path,title:str,dest:Path)->Path:
     clean=" ".join(title.replace("#Shorts","").split())[:70].replace(":"," -")
