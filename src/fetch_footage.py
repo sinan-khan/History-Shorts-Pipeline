@@ -1,8 +1,9 @@
 """Search and download reusable archival footage from the Internet Archive.
 
-Only candidates with an explicit public-domain/CC0 license, or from a known
-public-domain government collection, are accepted. The downloader also handles
-Archive.org filenames that contain spaces or other URL-sensitive characters.
+The Archive.org catalog is sparse for many specific historical events. Search therefore
+uses several progressively broader queries and accepts only explicit public-domain/CC0
+or known government-archive results. When no matching movie exists, the pipeline falls
+back to a generic historical clip instead of aborting the entire Short.
 """
 from __future__ import annotations
 
@@ -21,9 +22,17 @@ SAFE_COLLECTIONS = {
     "usgovernmentfilms",
     "NASAarchive",
     "nasa",
+    "prelinger",
+    "universal_newsreels",
 }
 
 PREFERRED_EXTENSIONS = (".mp4", ".m4v", ".mov")
+GENERIC_FALLBACK_QUERIES = (
+    "historical city street",
+    "historical people crowd",
+    "historic europe",
+    "vintage city",
+)
 
 
 def search_archive(query: str, rows: int = 12) -> list[dict]:
@@ -50,20 +59,42 @@ def _is_public_domain(doc: dict) -> bool:
     return explicit_pd or cc0 or bool(SAFE_COLLECTIONS.intersection(collections))
 
 
+def _query_variants(query: str) -> list[str]:
+    words = [w for w in query.replace(",", " ").split() if w]
+    variants = [query]
+    if len(words) > 3:
+        variants.append(" ".join(words[:3]))
+    if len(words) > 2:
+        variants.append(" ".join(words[-3:]))
+    if "construction" in words:
+        variants.append("historic construction")
+    if "tower" in words:
+        variants.append("historic tower")
+    return list(dict.fromkeys(variants))
+
+
 def pick_best_candidate(query: str, fallback_query: str | None = None) -> dict | None:
-    """Return the first license-verified result, trying the fallback query if needed."""
-    for q in [query, fallback_query]:
-        if not q:
+    """Return the first verified candidate from progressively broader searches."""
+    queries = _query_variants(query)
+    if fallback_query:
+        queries += _query_variants(fallback_query)
+    queries += list(GENERIC_FALLBACK_QUERIES)
+
+    seen: set[str] = set()
+    for q in queries:
+        if q in seen:
             continue
+        seen.add(q)
         for doc in search_archive(q):
             if _is_public_domain(doc):
+                log.info("Selected public-domain footage '%s' for query '%s'", doc.get("title"), q)
                 return doc
     log.warning("No verified public-domain match for '%s' / fallback '%s'", query, fallback_query)
     return None
 
 
 def get_video_file_url(identifier: str) -> str | None:
-    resp = requests.get(METADATA_URL.format(identifier=identifier), timeout=30)
+    resp = requests.get(METADATA_URL.format(identifier), timeout=30)
     resp.raise_for_status()
     files = resp.json().get("files", [])
     candidates = [
@@ -75,10 +106,7 @@ def get_video_file_url(identifier: str) -> str | None:
     for candidate in candidates:
         filename = candidate.get("name")
         if filename:
-            return DOWNLOAD_URL.format(
-                identifier=identifier,
-                filename=quote(filename, safe="/"),
-            )
+            return DOWNLOAD_URL.format(identifier=identifier, filename=quote(filename, safe="/"))
     return None
 
 
@@ -98,17 +126,14 @@ def fetch_clip_for_beat(query: str, fallback_query: str, out_dir: Path, index: i
     doc = pick_best_candidate(query, fallback_query)
     if not doc:
         return None
-
     url = get_video_file_url(doc["identifier"])
     if not url:
         log.warning("No downloadable video file for identifier %s", doc["identifier"])
         return None
-
     dest = out_dir / f"raw_{index}.mp4"
     return download_file(url, dest)
 
 
 def probe_video_duration(path: Path) -> float:
     from utils import get_duration
-
     return get_duration(path)
