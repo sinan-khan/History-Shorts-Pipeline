@@ -14,6 +14,9 @@ DOWNLOAD_URL = "https://archive.org/download/{identifier}/{filename}"
 
 SAFE_COLLECTIONS = {"usgovernmentfilms", "NASAarchive", "nasa", "prelinger", "universal_newsreels"}
 PREFERRED_EXTENSIONS = (".mp4", ".m4v", ".mov")
+# Never pull multi-GB source movies into a GitHub-hosted runner. A Short only needs a
+# small clip, and a huge source can consume the runner disk/time budget and get killed.
+MAX_VIDEO_BYTES = 500 * 1024 * 1024
 GENERIC_FALLBACK_QUERIES = ("historical city street", "historical people crowd", "historic europe", "vintage city")
 
 
@@ -70,17 +73,28 @@ def pick_best_candidate(query: str, fallback_query: str | None = None) -> dict |
     return None
 
 
-def get_video_file_url(identifier: str) -> str | None:
+def get_video_file_url(identifier: str) -> tuple[str, int] | None:
     resp = requests.get(METADATA_URL.format(identifier=identifier), timeout=30)
     resp.raise_for_status()
     files = resp.json().get("files", [])
-    candidates = [f for f in files if f.get("name", "").lower().endswith(PREFERRED_EXTENSIONS) and not f.get("private")]
-    candidates.sort(key=lambda f: int(f.get("size", 0) or 0), reverse=True)
-    for candidate in candidates:
-        filename = candidate.get("name")
-        if filename:
-            return DOWNLOAD_URL.format(identifier=identifier, filename=quote(filename, safe="/"))
-    return None
+    candidates = []
+    for f in files:
+        name = f.get("name", "")
+        if not name.lower().endswith(PREFERRED_EXTENSIONS) or f.get("private"):
+            continue
+        try:
+            size = int(f.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            size = 0
+        if size <= 0 or size > MAX_VIDEO_BYTES:
+            log.info("Skipping oversized Archive.org file %s (%d MB)", name, size // (1024 * 1024))
+            continue
+        candidates.append((size, name))
+    candidates.sort(key=lambda item: item[0])
+    if not candidates:
+        return None
+    size, filename = candidates[0]
+    return DOWNLOAD_URL.format(identifier=identifier, filename=quote(filename, safe="/")), size
 
 
 def download_file(url: str, dest: Path) -> Path:
@@ -102,10 +116,12 @@ def fetch_clip_for_beat(query: str, fallback_query: str, out_dir: Path, index: i
     if not identifier:
         log.warning("Archive candidate has no identifier: %r", doc)
         return None
-    url = get_video_file_url(identifier)
-    if not url:
-        log.warning("No downloadable video file for identifier %s", identifier)
+    selected = get_video_file_url(identifier)
+    if not selected:
+        log.warning("No suitable video file <= %d MB for identifier %s", MAX_VIDEO_BYTES // (1024 * 1024), identifier)
         return None
+    url, size = selected
+    log.info("Selected Archive.org file (%d MB): %s", size // (1024 * 1024), url)
     dest = out_dir / f"raw_{index}.mp4"
     return download_file(url, dest)
 
