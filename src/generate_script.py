@@ -13,9 +13,11 @@ SHORT_PROMPT = """Write an accurate, engaging history YouTube Short.
 Output ONLY JSON: {"title":"...","description":"...","tags":[...],"beats":[{"line":"...","footage_query":"..."},...]}
 Use 6-8 beats, each line one spoken sentence of 8-18 words. Total narration 35-50 seconds. First beat hooks; last beat pays off. Footage queries are 2-5 words. Title under 90 chars and ends #Shorts. Description is 2-4 sentences plus 4-6 hashtags including #Shorts and #History. Tags are 8-15 plain keywords. Do not invent uncertain facts."""
 
-LONG_PROMPT = """Write an accurate, cinematic long-form history YouTube video about the supplied topic.
-Output ONLY JSON: {"title":"...","description":"...","tags":[...],"beats":[{"line":"...","footage_query":"..."},...]}
-Create 18-26 beats totaling roughly 5-8 minutes when narrated. Each line should be 25-45 spoken words and form a coherent documentary: hook, context, chronology, key people, details, turning points, surprising facts, significance, and conclusion. Footage queries are 2-5 words and should seek visually useful archival material. Title under 100 characters without #Shorts. Description should summarize the documentary and include relevant hashtags. Tags are 10-20 plain keywords. Keep facts historically accurate and avoid unsupported claims."""
+LONG_PROMPT = """Write a deeply researched, cinematic 25-35 minute history documentary about the supplied topic.
+Output ONLY valid JSON with this shape: {"title":"...","description":"...","tags":[...],"beats":[{"line":"...","footage_query":"..."},...]}
+Target approximately 30 minutes of spoken narration: about 3,900-5,000 words total. Create 55-75 beats, with each line normally 55-80 spoken words. Organize the story into a compelling documentary arc: opening hook, historical context, origins, chronology, important people, causes and motivations, major developments, turning points, primary-source-aware details, consequences, lesser-known facts, historical debate where relevant, legacy, and a strong conclusion. Keep the narration flowing naturally between beats rather than sounding like disconnected facts.
+Every beat must have a useful 2-5 word footage_query suitable for public-domain/CC0 archival footage. Prefer concrete visual subjects, places, people, buildings, maps, documents, crowds, technology, landscapes, or period events. Do not pad the script merely to reach a runtime. Facts must be historically accurate; distinguish uncertainty or disputed claims instead of inventing details.
+Title: under 100 characters, compelling but not misleading, and never include #Shorts. Description: a detailed but concise documentary summary followed by relevant hashtags. Tags: 10-20 plain YouTube search keywords."""
 
 
 def _extract_json(text: str) -> str:
@@ -27,10 +29,10 @@ def _extract_json(text: str) -> str:
 def generate_script(topic: str, long_form: bool = False) -> dict:
     api_key = os.environ["GROQ_API_KEY"]
     system = LONG_PROMPT if long_form else SHORT_PROMPT
-    payload = {"model": GROQ_MODEL, "messages":[{"role":"system","content":system},{"role":"user","content":f"Topic: {topic}"}],"temperature":0.7,"max_tokens":7000 if long_form else 3000,"response_format":{"type":"json_object"}}
+    payload = {"model": GROQ_MODEL, "messages":[{"role":"system","content":system},{"role":"user","content":f"Topic: {topic}"}],"temperature":0.65,"max_tokens":14000 if long_form else 3000,"response_format":{"type":"json_object"}}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type":"application/json"}
     log.info("Requesting %s script for topic: %s", "long-form" if long_form else "Short", topic)
-    resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=120)
+    resp = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=180)
     resp.raise_for_status()
     raw = resp.json()["choices"][0]["message"]["content"]
     data = json.loads(_extract_json(raw))
