@@ -1,4 +1,4 @@
-"""End-to-end history video pipeline with automatic Short/long-form selection."""
+"""End-to-end history video pipeline with daily Shorts and 48-hour documentaries."""
 from __future__ import annotations
 import json
 import os
@@ -18,15 +18,17 @@ ROOT=Path(__file__).resolve().parent.parent
 TOPICS_FILE=ROOT/"config"/"topics.json"
 STATE_FILE=ROOT/"config"/"state.json"
 SOURCE_CREDIT="\n\nHistorical footage sourced from public-domain archives via the Internet Archive."
-LARGE_FOOTAGE_THRESHOLD=100*1024*1024
 LONG_FORM_INTERVAL_HOURS=48
 
 
-def _long_form_due() -> bool:
+def _load_state()->dict:
     try:
-        state=json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return True
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError,json.JSONDecodeError):
+        return {}
+
+
+def _long_form_due(state:dict)->bool:
     stamp=state.get("last_longform_publish")
     if not stamp:
         return True
@@ -39,33 +41,20 @@ def _long_form_due() -> bool:
     return elapsed >= LONG_FORM_INTERVAL_HOURS
 
 
-def _record_long_form_publish() -> None:
-    try:
-        state=json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError,json.JSONDecodeError):
-        state={}
+def _record_long_form_publish(state:dict)->None:
     state["last_longform_publish"]=datetime.now(timezone.utc).isoformat()
     STATE_FILE.write_text(json.dumps(state,indent=2)+"\n",encoding="utf-8")
 
 
-def _download_beats(beats:list[dict],topic:str,out_dir:Path)->tuple[list[Path],bool]:
-    paths=[]; large=False
-    for i,beat in enumerate(beats):
-        clip=fetch_clip_for_beat(beat["footage_query"],topic,out_dir,i)
-        if clip is None:
-            raise RuntimeError(f"No suitable public-domain footage found for beat {i} (query='{beat['footage_query']}').")
-        paths.append(clip)
-        size=clip.stat().st_size
-        log.info("Footage %d: %.1f MB",i,size/(1024*1024))
-        if size>LARGE_FOOTAGE_THRESHOLD:
-            large=True
-    return paths,large
-
-
-def build_video(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
+def _build(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
     footage_dir=ensure_dir(work_dir/"footage")
     script=generate_script(topic,long_form)
-    footage_paths,_=_download_beats(script["beats"],topic,footage_dir)
+    footage_paths=[]
+    for i,beat in enumerate(script["beats"]):
+        clip=fetch_clip_for_beat(beat["footage_query"],topic,footage_dir,i)
+        if clip is None:
+            raise RuntimeError(f"No suitable public-domain footage found for beat {i} (query='{beat['footage_query']}').")
+        footage_paths.append(clip)
     audio_dir=ensure_dir(work_dir/"audio")
     script["beats"]=generate_all(script["beats"],audio_dir)
     out_path=work_dir/("final_long.mp4" if long_form else "final_short.mp4")
@@ -75,33 +64,32 @@ def build_video(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
 
 def main()->None:
     forced_topic=sys.argv[1] if len(sys.argv)>1 and sys.argv[1].strip() else None
-    # A forced topic is still allowed, but automatic scheduling respects the 48-hour
-    # long-form cadence. The daily Actions run makes this deterministic without cron math.
-    if _long_form_due():
-        topic=forced_topic or get_next_topic(TOPICS_FILE,STATE_FILE)
-        log.info("=== Building scheduled 25-35 minute documentary: %s ===",topic)
-        long_form=True
-    else:
-        topic=forced_topic or get_next_topic(TOPICS_FILE,STATE_FILE)
-        log.info("=== Building history Short: %s ===",topic)
-        long_form=False
+    state=_load_state()
+    long_form_due=_long_form_due(state)
+
+    # Every daily run always creates a Short. Every second day it also creates a
+    # separate 25-35 minute documentary. They use different topics and both upload.
+    short_topic=forced_topic or get_next_topic(TOPICS_FILE,STATE_FILE)
+    log.info("=== Building daily history Short: %s ===",short_topic)
 
     with tempfile.TemporaryDirectory(prefix="history-shorts-") as tmp:
-        work_dir=Path(tmp)
-        video_path,script=build_video(topic,work_dir,long_form)
+        root=Path(tmp)
+        short_path,short_script=_build(short_topic,root/"short",False)
         if os.environ.get("DRY_RUN")=="1":
-            keep_path=ROOT/("output_preview_long.mp4" if long_form else "output_preview.mp4")
-            keep_path.write_bytes(video_path.read_bytes())
-            log.info("DRY_RUN set — video saved to %s, skipping upload.")
+            (ROOT/"output_preview.mp4").write_bytes(short_path.read_bytes())
+            log.info("DRY_RUN set — Short preview saved; skipping uploads.")
             return
-        description=script["description"].rstrip()+SOURCE_CREDIT
-        thumbnail=None
-        if long_form:
-            thumbnail=work_dir/"thumbnail.jpg"
-            make_thumbnail(video_path,script["title"],thumbnail)
-        upload_video(video_path,title=script["title"],description=description,tags=script["tags"],thumbnail_path=thumbnail)
-        if long_form:
-            _record_long_form_publish()
+        upload_video(short_path,title=short_script["title"],description=short_script["description"].rstrip()+SOURCE_CREDIT,tags=short_script["tags"])
+
+        if long_form_due:
+            long_topic=get_next_topic(TOPICS_FILE,STATE_FILE)
+            log.info("=== Building 25-35 minute documentary: %s ===",long_topic)
+            long_path,long_script=_build(long_topic,root/"long",True)
+            thumbnail=root/"long"/"thumbnail.jpg"
+            make_thumbnail(long_path,long_script["title"],thumbnail)
+            upload_video(long_path,title=long_script["title"],description=long_script["description"].rstrip()+SOURCE_CREDIT,tags=long_script["tags"],thumbnail_path=thumbnail)
+            _record_long_form_publish(state)
+            log.info("Long-form documentary published; next one is due in 48 hours.")
 
 if __name__=="__main__":
     main()
