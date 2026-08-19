@@ -11,7 +11,7 @@ from generate_narration import generate_all
 from generate_script import generate_script
 from assemble_video import assemble, make_thumbnail
 from topic_queue import get_next_topic
-from upload_youtube import upload_video
+from upload_youtube import upload_short, upload_long
 from utils import ensure_dir, log
 
 ROOT=Path(__file__).resolve().parent.parent
@@ -53,7 +53,7 @@ def _build(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
     for i,beat in enumerate(script["beats"]):
         clip=fetch_clip_for_beat(beat["footage_query"],topic,footage_dir,i)
         if clip is None:
-            raise RuntimeError(f"No suitable public-domain footage found for beat {i} (query='{beat['footage_query']}').")
+            raise RuntimeError(f"No suitable public-domain footage found for beat {i} (query='{beat['footage_query']}'.)")
         footage_paths.append(clip)
     audio_dir=ensure_dir(work_dir/"audio")
     script["beats"]=generate_all(script["beats"],audio_dir)
@@ -67,8 +67,6 @@ def main()->None:
     state=_load_state()
     long_form_due=_long_form_due(state)
 
-    # Every daily run always creates a Short. Every second day it also creates a
-    # separate 25-35 minute documentary. They use different topics and both upload.
     short_topic=forced_topic or get_next_topic(TOPICS_FILE,STATE_FILE)
     log.info("=== Building daily history Short: %s ===",short_topic)
 
@@ -79,7 +77,7 @@ def main()->None:
             (ROOT/"output_preview.mp4").write_bytes(short_path.read_bytes())
             log.info("DRY_RUN set — Short preview saved; skipping uploads.")
             return
-        upload_video(short_path,title=short_script["title"],description=short_script["description"].rstrip()+SOURCE_CREDIT,tags=short_script["tags"])
+        upload_short(short_path,title=short_script["title"],description=short_script["description"].rstrip()+SOURCE_CREDIT,tags=short_script["tags"])
 
         if long_form_due:
             long_topic=get_next_topic(TOPICS_FILE,STATE_FILE)
@@ -87,9 +85,9 @@ def main()->None:
             long_path,long_script=_build(long_topic,root/"long",True)
             thumbnail=root/"long"/"thumbnail.jpg"
             make_thumbnail(long_path,long_script["title"],thumbnail)
-            upload_video(long_path,title=long_script["title"],description=long_script["description"].rstrip()+SOURCE_CREDIT,tags=long_script["tags"],thumbnail_path=thumbnail)
+            upload_long(long_path,title=long_script["title"],description=long_script["description"].rstrip()+SOURCE_CREDIT,tags=long_script["tags"],thumbnail_path=thumbnail)
             _record_long_form_publish(state)
-            log.info("Long-form documentary published; next one is due in 48 hours.")
+            log.info("Long-form documentary uploaded and scheduled; next one is due in 48 hours.")
 
 if __name__=="__main__":
     main()
