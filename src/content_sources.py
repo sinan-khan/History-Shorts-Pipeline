@@ -1,15 +1,11 @@
-"""Multi-source discovery for historical video and still-image assets.
-
-Sources are searched only for discovery. Assets are accepted only when their
-metadata indicates a reusable/public-domain/CC license. Commercial archives
-are never treated as automatically free.
-"""
+"""Balanced discovery for reusable historical video/still assets."""
 from __future__ import annotations
 import hashlib,json,time
 from pathlib import Path
 import requests
 from utils import log
-UA={"User-Agent":"History-Shorts-Pipeline/1.0"};CACHE_TTL=7*24*3600
+UA={"User-Agent":"History-Shorts-Pipeline/1.0 (+https://github.com/sinan-khan/History-Shorts-Pipeline)"};CACHE_TTL=7*24*3600
+SOURCE_LIMITS={"loc":6,"wikimedia":4,"europeana":4}
 
 def _cache(root:Path,q:str):
     root.mkdir(parents=True,exist_ok=True);return root/(hashlib.sha256(q.lower().encode()).hexdigest()[:20]+".json")
@@ -27,6 +23,9 @@ def _get_json(url:str,params:dict,cache_dir:Path):
             except Exception:pass
     return None
 
+def _get_binary(url:str,timeout=(15,60)):
+    r=requests.get(url,headers=UA,timeout=timeout);r.raise_for_status();return r
+
 def _terms(text:str)->set[str]:
     import re
     return {x.lower() for x in re.findall(r"[a-z0-9]+",str(text)) if len(x)>2}
@@ -39,34 +38,39 @@ def _as_text(value)->str:
     return str(value)
 
 def search_wikimedia(query:str,cache_dir:Path)->list[dict]:
-    data=_get_json("https://commons.wikimedia.org/w/api.php",{"action":"query","generator":"search","gsrsearch":query,"gsrnamespace":6,"gsrlimit":20,"prop":"imageinfo|info","iiprop":"url|size|mime|extmetadata","format":"json","formatversion":2},cache_dir);out=[]
+    data=_get_json("https://commons.wikimedia.org/w/api.php",{"action":"query","generator":"search","gsrsearch":query,"gsrnamespace":6,"gsrlimit":12,"prop":"imageinfo|info","iiprop":"url|size|mime|extmetadata","iiurlwidth":1800,"format":"json","formatversion":2},cache_dir);out=[]
     for p in (data or {}).get("query",{}).get("pages",[]):
         info=(p.get("imageinfo") or [{}])[0];meta=info.get("extmetadata",{});license_name=_as_text(meta.get("LicenseShortName"));title=p.get("title","")
-        if info.get("url") and ("public domain" in license_name.lower() or "cc0" in license_name.lower() or license_name.lower().startswith("cc")):
-            out.append({"source":"wikimedia","kind":"still","title":title,"url":info["url"],"license":license_name,"score":_score(query,title,_as_text(meta.get("ImageDescription")))})
-    return sorted(out,key=lambda x:-x["score"])
+        thumb=info.get("thumburl") or info.get("url")
+        if thumb and ("public domain" in license_name.lower() or "cc0" in license_name.lower() or license_name.lower().startswith("cc")):
+            out.append({"source":"wikimedia","kind":"still","title":title,"url":thumb,"original_url":info.get("url"),"license":license_name,"score":_score(query,title,_as_text(meta.get("ImageDescription")))})
+    return sorted(out,key=lambda x:-x["score"])[:SOURCE_LIMITS["wikimedia"]]
 
 def search_europeana(query:str,cache_dir:Path,api_key:str|None=None)->list[dict]:
     if not api_key:return []
-    data=_get_json("https://api.europeana.eu/record/v2/search.json",{"wskey":api_key,"query":query,"rows":20,"profile":"rich"},cache_dir);out=[]
+    data=_get_json("https://api.europeana.eu/record/v2/search.json",{"wskey":api_key,"query":query,"rows":12,"profile":"rich"},cache_dir);out=[]
     for item in (data or {}).get("items",[]):
         rights=_as_text(item.get("rights"));link=item.get("edmIsShownBy") or item.get("edmPreview")
         if link and any(x in rights.lower() for x in ("creativecommons.org","public domain","creativecommons")):
             title=_as_text(item.get("title"));out.append({"source":"europeana","kind":"still","title":title,"url":link,"license":rights,"score":_score(query,title,_as_text(item.get("dcDescription")))})
-    return sorted(out,key=lambda x:-x["score"])
+    return sorted(out,key=lambda x:-x["score"])[:SOURCE_LIMITS["europeana"]]
 
 def search_loc(query:str,cache_dir:Path)->list[dict]:
-    data=_get_json("https://www.loc.gov/search/",{"q":query,"fo":"json","c":20,"fa":"online-format:image|online-format:video"},cache_dir);out=[]
+    data=_get_json("https://www.loc.gov/search/",{"q":query,"fo":"json","c":12,"fa":"online-format:image|online-format:video"},cache_dir);out=[]
     for item in (data or {}).get("results",[]):
-        rights=_as_text(item.get("rights"));description=_as_text(item.get("description"));rights_text=f"{rights} {description}".strip()
-        images=item.get("image_url");url=images[0] if isinstance(images,list) and images else item.get("url")
+        rights=_as_text(item.get("rights"));description=_as_text(item.get("description"));rights_text=f"{rights} {description}".strip();images=item.get("image_url");url=images[0] if isinstance(images,list) and images else item.get("url")
         if url and any(x in rights_text.lower() for x in ("public domain","free to use","no known restrictions")):
             title=_as_text(item.get("title"));out.append({"source":"loc","kind":"still_or_video","title":title,"url":url,"license":rights_text,"score":_score(query,title,description)})
-    return sorted(out,key=lambda x:-x["score"])
+    return sorted(out,key=lambda x:-x["score"])[:SOURCE_LIMITS["loc"]]
 
 def search_all(query:str,cache_dir:Path,europeana_key:str|None=None)->list[dict]:
-    results=[]
-    for fn in (search_wikimedia,lambda q,c:search_loc(q,c),lambda q,c:search_europeana(q,c,europeana_key)):
-        try:results.extend(fn(query,cache_dir))
-        except (requests.RequestException,ValueError,TypeError) as exc:log.warning("Historical source failed for '%s': %s",query,exc)
-    return sorted(results,key=lambda x:-x.get("score",0))
+    """Return a round-robin source-balanced pool, not one source sorted globally."""
+    pools=[]
+    for name,fn in (("loc",search_loc),("wikimedia",search_wikimedia),("europeana",lambda q,c:search_europeana(q,c,europeana_key))):
+        try:pools.append(fn(query,cache_dir))
+        except (requests.RequestException,ValueError,TypeError) as exc:log.warning("%s source failed for '%s': %s",name,query,exc)
+    out=[]
+    for i in range(max((len(p) for p in pools),default=0)):
+        for pool in pools:
+            if i<len(pool):out.append(pool[i])
+    return out
