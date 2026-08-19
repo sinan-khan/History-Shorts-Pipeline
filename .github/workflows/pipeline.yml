@@ -2,12 +2,12 @@ name: History Shorts Pipeline
 
 on:
   schedule:
-    - cron: "0 13 * * *"  # run 1 — ~13:00 UTC
-    - cron: "0 1 * * *"   # run 2 — ~01:00 UTC (roughly 12h apart, different audience timezones)
+    - cron: "0 13 * * *"
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       topic:
-        description: "Optional: force a specific topic (leave blank to auto-rotate the queue)"
+        description: "Optional: force a specific topic"
         required: false
         default: ""
       dry_run:
@@ -15,8 +15,12 @@ on:
         type: boolean
         default: false
 
+concurrency:
+  group: history-shorts-pipeline
+  cancel-in-progress: false
+
 permissions:
-  contents: write  # needed to commit the advanced topic-queue pointer back to the repo
+  contents: write
 
 jobs:
   build-and-publish:
@@ -28,12 +32,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      
+          cache: pip
+          cache-dependency-path: requirements.txt
+
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt
 
       - name: Run pipeline
         working-directory: src
@@ -50,3 +56,7 @@ jobs:
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name "history-shorts-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add config/state.json
+          git diff --staged --quiet || git commit -m "chore: advance topic queue [skip ci]"
+          git push
