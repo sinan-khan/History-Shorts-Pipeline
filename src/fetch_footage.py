@@ -1,10 +1,4 @@
-"""Search and download reusable archival footage from the Internet Archive.
-
-The Archive.org catalog is sparse for many specific historical events. Search therefore
-uses several progressively broader queries and accepts only explicit public-domain/CC0
-or known government-archive results. When no matching movie exists, the pipeline falls
-back to a generic historical clip instead of aborting the entire Short.
-"""
+"""Search and download reusable archival footage from the Internet Archive."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,30 +12,13 @@ SEARCH_URL = "https://archive.org/advancedsearch.php"
 METADATA_URL = "https://archive.org/metadata/{identifier}"
 DOWNLOAD_URL = "https://archive.org/download/{identifier}/{filename}"
 
-SAFE_COLLECTIONS = {
-    "usgovernmentfilms",
-    "NASAarchive",
-    "nasa",
-    "prelinger",
-    "universal_newsreels",
-}
-
+SAFE_COLLECTIONS = {"usgovernmentfilms", "NASAarchive", "nasa", "prelinger", "universal_newsreels"}
 PREFERRED_EXTENSIONS = (".mp4", ".m4v", ".mov")
-GENERIC_FALLBACK_QUERIES = (
-    "historical city street",
-    "historical people crowd",
-    "historic europe",
-    "vintage city",
-)
+GENERIC_FALLBACK_QUERIES = ("historical city street", "historical people crowd", "historic europe", "vintage city")
 
 
 def search_archive(query: str, rows: int = 12) -> list[dict]:
-    params = {
-        "q": f'({query}) AND mediatype:(movies)',
-        "fl[]": ["identifier", "title", "licenseurl", "collection"],
-        "rows": rows,
-        "output": "json",
-    }
+    params = {"q": f'({query}) AND mediatype:(movies)', "fl[]": ["identifier", "title", "licenseurl", "collection"], "rows": rows, "output": "json"}
     resp = requests.get(SEARCH_URL, params=params, timeout=30)
     resp.raise_for_status()
     docs = resp.json().get("response", {}).get("docs", [])
@@ -50,6 +27,8 @@ def search_archive(query: str, rows: int = 12) -> list[dict]:
 
 
 def _is_public_domain(doc: dict) -> bool:
+    if not doc.get("identifier"):
+        return False
     license_url = (doc.get("licenseurl") or "").lower()
     explicit_pd = "publicdomain" in license_url or "creativecommons.org/publicdomain" in license_url
     cc0 = "cc0" in license_url
@@ -74,12 +53,10 @@ def _query_variants(query: str) -> list[str]:
 
 
 def pick_best_candidate(query: str, fallback_query: str | None = None) -> dict | None:
-    """Return the first verified candidate from progressively broader searches."""
     queries = _query_variants(query)
     if fallback_query:
         queries += _query_variants(fallback_query)
     queries += list(GENERIC_FALLBACK_QUERIES)
-
     seen: set[str] = set()
     for q in queries:
         if q in seen:
@@ -94,14 +71,10 @@ def pick_best_candidate(query: str, fallback_query: str | None = None) -> dict |
 
 
 def get_video_file_url(identifier: str) -> str | None:
-    resp = requests.get(METADATA_URL.format(identifier), timeout=30)
+    resp = requests.get(METADATA_URL.format(identifier=identifier), timeout=30)
     resp.raise_for_status()
     files = resp.json().get("files", [])
-    candidates = [
-        f for f in files
-        if f.get("name", "").lower().endswith(PREFERRED_EXTENSIONS)
-        and not f.get("private")
-    ]
+    candidates = [f for f in files if f.get("name", "").lower().endswith(PREFERRED_EXTENSIONS) and not f.get("private")]
     candidates.sort(key=lambda f: int(f.get("size", 0) or 0), reverse=True)
     for candidate in candidates:
         filename = candidate.get("name")
@@ -122,13 +95,16 @@ def download_file(url: str, dest: Path) -> Path:
 
 
 def fetch_clip_for_beat(query: str, fallback_query: str, out_dir: Path, index: int) -> Path | None:
-    """Search, verify, and download raw footage for one beat."""
     doc = pick_best_candidate(query, fallback_query)
     if not doc:
         return None
-    url = get_video_file_url(doc["identifier"])
+    identifier = doc.get("identifier")
+    if not identifier:
+        log.warning("Archive candidate has no identifier: %r", doc)
+        return None
+    url = get_video_file_url(identifier)
     if not url:
-        log.warning("No downloadable video file for identifier %s", doc["identifier"])
+        log.warning("No downloadable video file for identifier %s", identifier)
         return None
     dest = out_dir / f"raw_{index}.mp4"
     return download_file(url, dest)
