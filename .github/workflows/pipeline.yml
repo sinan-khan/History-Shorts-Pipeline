@@ -1,8 +1,9 @@
 name: History Shorts Pipeline
 
 on:
+  # Run once per day. pipeline.py persists the last successful long-form upload
+  # timestamp and only creates a documentary every 48 hours.
   schedule:
-    - cron: "0 13 * * *"
     - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
@@ -25,7 +26,7 @@ permissions:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
 
@@ -52,11 +53,11 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: python pipeline.py "${{ github.event.inputs.topic }}"
 
-      - name: Persist topic queue pointer
+      - name: Persist topic and publishing state
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
           git config user.name "history-shorts-bot"
           git config user.email "actions@users.noreply.github.com"
           git add config/state.json
-          git diff --staged --quiet || git commit -m "chore: advance topic queue [skip ci]"
+          git diff --staged --quiet || git commit -m "chore: persist publishing state [skip ci]"
           git push
