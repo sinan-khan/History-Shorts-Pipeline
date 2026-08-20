@@ -7,11 +7,10 @@ from fetch_footage import fetch_clip_for_beat
 from generate_narration import generate_all
 from generate_script import generate_script
 from assemble_video import assemble, make_thumbnail
-from topic_queue import get_next_topic
 from upload_youtube import upload_short, upload_long
 from utils import ensure_dir, log, run
 ROOT=Path(__file__).resolve().parent.parent; TOPICS_FILE=ROOT/"config"/"topics.json"; STATE_FILE=ROOT/"config"/"state.json"
-SOURCE_CREDIT="\n\nHistorical footage and imagery sourced from reusable public-domain/Creative Commons archives; individual asset credits are retained where available."; LONG_FORM_INTERVAL_HOURS=48; MIN_LONG_SECONDS=25*60; MAX_LONG_SECONDS=35*60; MAX_TOPIC_ATTEMPTS=5
+SOURCE_CREDIT="\n\nHistorical footage and imagery in this video are selected from public-domain, CC/CC0, or otherwise explicitly rights-cleared sources. Individual credits are retained where available. Editing or commentary is not represented as a substitute for permission."; LONG_FORM_INTERVAL_HOURS=48; MIN_LONG_SECONDS=25*60; MAX_LONG_SECONDS=35*60; MAX_TOPIC_ATTEMPTS=15; PREFLIGHT_BEATS=2
 
 def _load_state()->dict:
     try:return json.loads(STATE_FILE.read_text(encoding="utf-8"))
@@ -36,36 +35,51 @@ def _validate_long_form(path:Path,thumbnail:Path)->None:
     if not thumbnail.exists() or thumbnail.stat().st_size<10000:raise RuntimeError("Long-form validation failed: thumbnail missing")
     tw,th=_thumbnail_dimensions(thumbnail)
     if (tw,th)!=(1280,720):raise RuntimeError(f"Long-form validation failed: thumbnail {tw}x{th}")
-def _build(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
-    footage_dir=ensure_dir(work_dir/"footage");script=generate_script(topic,long_form);footage_paths=[];used_sources=set()
-    for i,beat in enumerate(script["beats"]):
-        clip=fetch_clip_for_beat(beat["footage_query"],topic,footage_dir,i,duration=8.0 if not long_form else 24.0,used_sources=used_sources)
-        if clip is None:raise RuntimeError(f"No suitable unique historical visual found for beat {i} (query='{beat['footage_query']}')")
-        footage_paths.append(clip)
-    audio_dir=ensure_dir(work_dir/"audio");script["beats"]=generate_all(script["beats"],audio_dir);out_path=work_dir/("final_long.mp4" if long_form else "final_short.mp4");assemble(script["beats"],footage_paths,work_dir,out_path,long_form=long_form);return out_path,script
+
 def _candidate_topics(state:dict,preferred:str|None=None):
     if preferred:return [preferred]
-    topics=json.loads(TOPICS_FILE.read_text(encoding="utf-8"))
-    if isinstance(topics,dict):topics=topics.get("topics",[])
-    failed=set(state.get("skipped_topics",{}));published=set(state.get("published_topics",[]));cursor=int(state.get("topic_cursor",0))
-    out=[]
+    topics=json.loads(TOPICS_FILE.read_text(encoding="utf-8"));topics=topics.get("topics",[]) if isinstance(topics,dict) else topics;failed=set(state.get("skipped_topics",{}));published=set(state.get("published_topics",[]));cursor=int(state.get("topic_cursor",0));out=[]
     for offset in range(len(topics)):
         topic=topics[(cursor+offset)%len(topics)]
         if topic not in failed and topic not in published and topic not in out:out.append(topic)
         if len(out)>=MAX_TOPIC_ATTEMPTS:break
     return out
+
 def _mark_published(state:dict,topic:str)->None:
     published=state.setdefault("published_topics",[])
     if topic not in published:published.append(topic)
     topics=json.loads(TOPICS_FILE.read_text(encoding="utf-8"));topics=topics.get("topics",[]) if isinstance(topics,dict) else topics
     if topics:state["topic_cursor"]=(topics.index(topic)+1)%len(topics)
     _save_state(state)
+
+def _preflight(topic:str,script:dict,work_dir:Path)->bool:
+    """Cheap visual check before expensive narration/assembly. It never uploads anything."""
+    test_dir=ensure_dir(work_dir/"preflight");used=set();disabled=set()
+    for i,beat in enumerate(script["beats"][:PREFLIGHT_BEATS]):
+        clip=fetch_clip_for_beat(beat["footage_query"],topic,test_dir,i,duration=1.0,used_sources=used,disabled_sources=disabled)
+        if clip is None:return False
+    return True
+
+def _build(topic:str,work_dir:Path,long_form:bool)->tuple[Path,dict]:
+    footage_dir=ensure_dir(work_dir/"footage");script=generate_script(topic,long_form)
+    if not _preflight(topic,script,work_dir):raise RuntimeError("Topic failed visual preflight; insufficient relevant rights-cleared material")
+    footage_paths=[];used_sources=set();disabled_sources=set()
+    for i,beat in enumerate(script["beats"]):
+        clip=fetch_clip_for_beat(beat["footage_query"],topic,footage_dir,i,duration=8.0 if not long_form else 24.0,used_sources=used_sources,disabled_sources=disabled_sources)
+        if clip is None:raise RuntimeError(f"No suitable related rights-cleared visual found for beat {i} (query='{beat['footage_query']}')")
+        footage_paths.append(clip)
+    audio_dir=ensure_dir(work_dir/"audio");script["beats"]=generate_all(script["beats"],audio_dir);out_path=work_dir/("final_long.mp4" if long_form else "final_short.mp4");assemble(script["beats"],footage_paths,work_dir,out_path,long_form=long_form);return out_path,script
+
 def _build_with_fallback(state:dict,root:Path,long_form:bool,preferred:str|None=None):
     for topic in _candidate_topics(state,preferred):
-        try:return topic,*_build(topic,root/topic.replace(" ","_"),long_form)
+        try:
+            log.info("Trying topic: %s",topic);script=generate_script(topic,long_form)
+            if not _preflight(topic,script,root/topic.replace(" ","_")/"check"):raise RuntimeError("visual preflight failed")
+            path,script=_build(topic,root/topic.replace(" ","_"),long_form);return topic,path,script
         except (RuntimeError,ValueError,KeyError,json.JSONDecodeError) as exc:
             log.warning("Skipping topic '%s': %s",topic,exc);_mark_topic_failed(state,topic,str(exc))
     raise RuntimeError(f"No viable {'long-form' if long_form else 'Short'} topic found after {MAX_TOPIC_ATTEMPTS} attempts")
+
 def main()->None:
     forced=sys.argv[1].strip() if len(sys.argv)>1 and sys.argv[1].strip() else None;state=_load_state();due=_long_form_due(state)
     with tempfile.TemporaryDirectory(prefix="history-shorts-") as tmp:
