@@ -1,8 +1,8 @@
-"""Find relevant archival video first, then rights-cleared historical stills as fallback."""
+"""Find relevant archival video first, then rights-cleared multi-source visuals."""
 from __future__ import annotations
 from pathlib import Path
 from urllib.parse import quote
-import hashlib,json,time,requests
+import hashlib,json,time,requests,os
 from utils import log,run
 from content_sources import search_all
 SEARCH_URL="https://archive.org/advancedsearch.php"; METADATA_URL="https://archive.org/metadata/{identifier}"; DOWNLOAD_URL="https://archive.org/download/{identifier}/{filename}"
@@ -71,18 +71,18 @@ def _candidate_items(query,fallback_query=None,cache_dir=None):
                 filename,size=files[0];seen.add(ident);candidates.append((doc,DOWNLOAD_URL.format(identifier=ident,filename=quote(filename,safe="/")),size))
     return candidates[:MAX_CANDIDATES]
 
-def _download(url,dest):
+def _download(url,dest,max_bytes=MAX_VIDEO_BYTES,timeout=(15,90)):
     tmp=dest.with_suffix(dest.suffix+".part")
     try:
-        with requests.get(url,stream=True,timeout=(15,90)) as r:
+        with requests.get(url,stream=True,timeout=timeout,headers={"User-Agent":"History-Shorts-Pipeline/1.0"}) as r:
             r.raise_for_status();length=int(r.headers.get("Content-Length",0) or 0)
-            if length>MAX_VIDEO_BYTES:raise requests.RequestException("Remote file exceeds 500MB")
+            if length>max_bytes:raise requests.RequestException(f"Remote file exceeds {max_bytes//(1024*1024)}MB")
             total=0
             with open(tmp,"wb") as f:
                 for chunk in r.iter_content(1<<20):
                     if chunk:
                         total+=len(chunk)
-                        if total>MAX_VIDEO_BYTES:raise requests.RequestException("Download exceeded 500MB")
+                        if total>max_bytes:raise requests.RequestException("Download exceeded size limit")
                         f.write(chunk)
         if total==0:raise requests.RequestException("Empty download")
         tmp.replace(dest);return dest
@@ -96,38 +96,38 @@ def _image_to_video(url,dest,duration,index):
     if len(data)>25*1024*1024:raise requests.RequestException("Historical image exceeds 25MB")
     image.write_bytes(data);frames=max(30,int(duration*30));zoom="min(zoom+0.00035,1.14)" if index%2==0 else "max(zoom-0.00025,1.0)";x="(iw-iw/zoom)/2+20*sin(on/18)";y="(ih-ih/zoom)/2+12*sin(on/23)";vf=f"scale=2200:2200:force_original_aspect_ratio=increase,crop=2200:1240,zoompan=z='{zoom}':x='{x}':y='{y}':d={frames}:s=1920x1080:fps=30,setsar=1,format=yuv420p";run(["ffmpeg","-y","-loop","1","-i",str(image),"-t",str(duration),"-vf",vf,"-an","-c:v","libx264","-crf","19","-preset","veryfast","-pix_fmt","yuv420p",str(dest)]);return dest
 
+def _record_source(used_sources,source):
+    if isinstance(used_sources,dict):used_sources[source]=used_sources.get(source,0)+1
+    elif isinstance(used_sources,set):used_sources.add(source)
+
+def _source_used(used_sources,key):
+    return key in used_sources if isinstance(used_sources,set) else False
+
 def fetch_clip_for_beat(query,fallback_query,out_dir,index,duration=None,used_sources=None,disabled_sources=None):
-    used_sources=used_sources if used_sources is not None else set();disabled_sources=disabled_sources if disabled_sources is not None else set();cache=out_dir/".cache";out_dir.mkdir(parents=True,exist_ok=True)
-    # Archive circuit breaker: one metadata/download failure per candidate, two consecutive failures disables Archive for this run.
+    used_sources=used_sources if used_sources is not None else {};disabled_sources=disabled_sources if disabled_sources is not None else set();cache=out_dir/".cache";out_dir.mkdir(parents=True,exist_ok=True)
     archive_failures=0
     for doc,url,size in _candidate_items(query,fallback_query,cache)[:MAX_CANDIDATES]:
         ident=doc.get("identifier")
-        if ident in used_sources:continue
-        try:
-            p=_download(url,out_dir/f"raw_{index}.mp4");used_sources.add(ident);return p
+        if _source_used(used_sources,ident):continue
+        try:p=_download(url,out_dir/f"raw_{index}.mp4");_record_source(used_sources,"archive");return p
         except requests.RequestException as exc:
             archive_failures+=1;log.warning("Archive candidate failed (%d/2): %s",archive_failures,exc)
-            if archive_failures>=2:
-                disabled_sources.add("archive");log.warning("Archive circuit breaker tripped for this beat/run");break
-    if "archive" in disabled_sources:log.info("Archive disabled; using rights-cleared still sources")
-    items=[];seen=set()
+            if archive_failures>=2:disabled_sources.add("archive");log.warning("Archive circuit breaker tripped for this run");break
+    items=[]
+    api={"europeana_key":os.getenv("EUROPEANA_API_KEY"),"nasa_key":os.getenv("NASA_API_KEY"),"pexels_key":os.getenv("PEXELS_API_KEY"),"pixabay_key":os.getenv("PIXABAY_API_KEY")}
+    seen=set()
     for q in _query_variants(query)+_query_variants(fallback_query or ""):
         if not q:continue
-        for item in search_all(q,cache):
+        for item in search_all(q,cache,**api,used_sources=used_sources if isinstance(used_sources,dict) else {}):
             source=item.get("source","unknown");key=f"{source}:{item.get('url')}"
-            if source in disabled_sources or key in seen or key in used_sources:continue
+            if source in disabled_sources or key in seen or _source_used(used_sources,key):continue
             seen.add(key);items.append(item)
-    grouped={}
-    for item in items:grouped.setdefault(item.get("source","unknown"),[]).append(item)
-    ordered=[]
-    while grouped:
-        for source in list(grouped):
-            if grouped[source]:ordered.append(grouped[source].pop(0))
-            if not grouped[source]:del grouped[source]
-    for item in ordered:
-        source=item.get("source","unknown")
+    for item in items:
+        source=item.get("source","unknown");url=item.get("url")
         try:
-            p=_image_to_video(item["url"],out_dir/f"raw_{index}.mp4",duration or 5.0,index);used_sources.add(f"{source}:{item.get('url')}");return p
+            if item.get("kind")=="video":
+                p=_download(url,out_dir/f"raw_{index}.mp4",max_bytes=MAX_VIDEO_BYTES,timeout=(15,90));_record_source(used_sources,source);log.info("Selected %s video: %s",source,item.get("title"));return p
+            p=_image_to_video(url,out_dir/f"raw_{index}.mp4",duration or 5.0,index);_record_source(used_sources,source);log.info("Selected %s still: %s",source,item.get("title"));return p
         except requests.HTTPError as exc:
             if getattr(exc.response,"status_code",None)==429:disabled_sources.add(source);log.warning("%s rate-limited; disabling it",source)
         except (requests.RequestException,RuntimeError,OSError) as exc:log.warning("%s visual failed: %s",source,exc)
