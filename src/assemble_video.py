@@ -23,7 +23,7 @@ def _write_srt(beats:list[dict],dest:Path,long_form:bool=False)->None:
         h,rem=divmod(t,3600);m,s=divmod(rem,60);ms=int((s-int(s))*1000);return f"{int(h):02d}:{int(m):02d}:{int(s):02d},{ms:03d}"
     lines=[];t=0.0;cue=1
     for beat in beats:
-        words=beat["line"].split();chunk_size=10 if long_form else 5;chunks=[" ".join(words[j:j+chunk_size]) for j in range(0,len(words),chunk_size)] or [beat["line"]];chunk_duration=beat["duration"]/len(chunks)
+        words=beat["line"].split();chunk_size=10 if long_form else 4;chunks=[" ".join(words[j:j+chunk_size]) for j in range(0,len(words),chunk_size)] or [beat["line"]];chunk_duration=beat["duration"]/len(chunks)
         for chunk in chunks:lines += [str(cue),f"{fmt(t)} --> {fmt(t+chunk_duration)}",chunk,""];cue+=1;t+=chunk_duration
     dest.write_text("\n".join(lines),encoding="utf-8")
 
@@ -33,7 +33,7 @@ def assemble(beats:list[dict],footage_paths:list[Path],work_dir:Path,out_path:Pa
         trimmed=work_dir/f"trimmed_{i}.mp4";muxed=work_dir/f"beat_{i}.mp4";_trim_or_loop_to_duration(footage,trimmed,beat["duration"],long_form,i);_mux_beat(trimmed,Path(beat["audio_path"]),muxed);beat_clips.append(muxed)
     concat_list=work_dir/"concat.txt";concat_list.write_text("\n".join(f"file '{c.resolve()}'" for c in beat_clips),encoding="utf-8");concatenated=work_dir/"concatenated.mp4";run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(concat_list),"-c","copy",str(concatenated)])
     srt_path=work_dir/"captions.srt";_write_srt(beats,srt_path,long_form)
-    style=("FontSize=15,PrimaryColour=&H00F5F5F5,OutlineColour=&H00101010,BorderStyle=1,Outline=1,Shadow=1,Alignment=2,MarginV=42,MarginL=160,MarginR=160" if long_form else "FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=1,Alignment=2,MarginV=120,MarginL=110,MarginR=110")
+    style=("FontSize=15,PrimaryColour=&H00F5F5F5,OutlineColour=&H00101010,BorderStyle=1,Outline=1,Shadow=1,Alignment=2,MarginV=42,MarginL=160,MarginR=160" if long_form else "FontSize=11,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=1,Alignment=2,MarginV=260,MarginL=180,MarginR=180")
     aspect="16:9" if long_form else "9:16"
     run(["ffmpeg","-y","-i",str(concatenated),"-vf",f"subtitles={srt_path}:force_style='{style}'","-c:v","libx264","-crf","18","-preset","medium","-pix_fmt","yuv420p","-c:a","aac","-b:a","192k","-movflags","+faststart","-r","30","-aspect",aspect,str(out_path)])
     duration=get_duration(out_path);log.info("Final %s video written to %s (%.1fs)","long-form" if long_form else "Short",out_path,duration);return out_path
