@@ -1,6 +1,6 @@
 """End-to-end history video pipeline with daily Shorts and 48-hour documentaries."""
 from __future__ import annotations
-import json, os, sys, tempfile
+import json, os, sys, tempfile, subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from fetch_footage import fetch_clip_for_beat
@@ -12,6 +12,10 @@ from utils import ensure_dir, log
 ROOT=Path(__file__).resolve().parent.parent; TOPICS_FILE=ROOT/"config"/"topics.json"; STATE_FILE=ROOT/"config"/"state.json"; CHECKPOINT_DIR=ROOT/"config"/".longform_checkpoints"
 SOURCE_CREDIT="\n\nHistorical footage and imagery in this video are selected from public-domain, CC/CC0, or otherwise explicitly rights-cleared sources. Individual credits are retained where available. Editing or commentary is not represented as a substitute for permission."; LONG_FORM_INTERVAL_HOURS=48; MIN_LONG_SECONDS=25*60; MAX_LONG_SECONDS=35*60; MAX_TOPIC_ATTEMPTS=15; PREFLIGHT_BEATS=2
 
+def _probe(path):
+    p=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-show_entries","stream=width,height","-of","json",str(path)],capture_output=True,text=True,check=True);d=json.loads(p.stdout);duration=float((d.get("format") or {}).get("duration",0));streams=d.get("streams") or [];v=next((x for x in streams if x.get("width") and x.get("height")),{});return duration,int(v.get("width",0)),int(v.get("height",0))
+def _thumbnail_dimensions(path):
+    p=subprocess.run(["ffprobe","-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=s=x:p=0",str(path)],capture_output=True,text=True,check=True);w,h=p.stdout.strip().split("x");return int(w),int(h)
 def _load_state():
     try:return json.loads(STATE_FILE.read_text(encoding="utf-8"))
     except (FileNotFoundError,json.JSONDecodeError):return {}
@@ -29,6 +33,14 @@ def _topics():
 def _candidate_topics(s,preferred=None):
     if preferred:return [preferred]
     topics=_topics();failed=set(s.get("skipped_topics",{}));published=set(s.get("published_topics",[]));cursor=int(s.get("topic_cursor",0));out=[]
+    # Always prioritize an unfinished long-form checkpoint before new topics.
+    checkpoint_topics=[]
+    if CHECKPOINT_DIR.exists():
+        for cp in CHECKPOINT_DIR.glob("*.json"):
+            try:checkpoint_topics.append(json.loads(cp.read_text()).get("topic"))
+            except Exception:pass
+    for t in checkpoint_topics:
+        if t and t not in published and t not in out:out.append(t)
     for off in range(len(topics)):
         t=topics[(cursor+off)%len(topics)]
         if t not in failed and t not in published and t not in out:out.append(t)
@@ -60,7 +72,10 @@ def _try_topics(s,root,long_form,preferred=None):
         try:
             log.info("Trying %s topic: %s",'long-form' if long_form else 'Short',topic);p,script=_build(topic,root/topic.replace(" ","_"),long_form);return topic,p,script
         except (RuntimeError,ValueError,KeyError,json.JSONDecodeError) as exc:
-            log.warning("Skipping topic '%s': %s",topic,exc);_mark_topic_failed(s,topic,str(exc))
+            # Keep resumable long-form topics eligible; a checkpoint means this is an unfinished documentary, not a dead topic.
+            cp=CHECKPOINT_DIR/(topic.lower().replace(" ","_")+".json")
+            if long_form and cp.exists():log.warning("Deferring unfinished long-form '%s' without marking topic failed: %s",topic,exc)
+            else:_mark_topic_failed(s,topic,str(exc))
     return None,None,None
 def _validate_long(path,thumb):
     duration,w,h=_probe(path)
