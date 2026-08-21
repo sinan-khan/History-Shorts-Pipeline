@@ -9,7 +9,7 @@ from generate_script import generate_script
 from assemble_video import assemble, make_thumbnail
 from upload_youtube import upload_short, upload_long
 from utils import ensure_dir, log
-ROOT=Path(__file__).resolve().parent.parent; TOPICS_FILE=ROOT/"config"/"topics.json"; STATE_FILE=ROOT/"config"/"state.json"
+ROOT=Path(__file__).resolve().parent.parent; TOPICS_FILE=ROOT/"config"/"topics.json"; STATE_FILE=ROOT/"config"/"state.json"; CHECKPOINT_DIR=ROOT/"config"/".longform_checkpoints"
 SOURCE_CREDIT="\n\nHistorical footage and imagery in this video are selected from public-domain, CC/CC0, or otherwise explicitly rights-cleared sources. Individual credits are retained where available. Editing or commentary is not represented as a substitute for permission."; LONG_FORM_INTERVAL_HOURS=48; MIN_LONG_SECONDS=25*60; MAX_LONG_SECONDS=35*60; MAX_TOPIC_ATTEMPTS=15; PREFLIGHT_BEATS=2
 
 def _load_state():
@@ -46,6 +46,7 @@ def _preflight(topic,script,work):
         if fetch_clip_for_beat(b["footage_query"],topic,d,i,duration=1.0,used_sources=used,disabled_sources=disabled) is None:return False
     return True
 def _build(topic,work,long_form):
+    if long_form:os.environ["LONGFORM_CHECKPOINT_DIR"]=str(CHECKPOINT_DIR)
     script=generate_script(topic,long_form)
     if not _preflight(topic,script,work):raise RuntimeError("visual preflight failed")
     fd=ensure_dir(work/"footage");used=set();disabled=set();paths=[]
@@ -62,7 +63,6 @@ def _try_topics(s,root,long_form,preferred=None):
             log.warning("Skipping topic '%s': %s",topic,exc);_mark_topic_failed(s,topic,str(exc))
     return None,None,None
 def _validate_long(path,thumb):
-    from pipeline import _probe,_thumbnail_dimensions
     duration,w,h=_probe(path)
     if not MIN_LONG_SECONDS<=duration<=MAX_LONG_SECONDS:raise RuntimeError(f"Long-form QC failed: {duration:.1f}s")
     if w<1920 or h<1080 or w/h<1.7:raise RuntimeError(f"Long-form QC failed: {w}x{h}")
@@ -79,10 +79,10 @@ def main():
         if not due:return
         lt,lp,ls=_try_topics(s,root/"long",True)
         if lp is None:
-            log.warning("Long-form deferred: no viable topic or AI/source availability. Short was already published successfully.");return
+            log.warning("Long-form deferred: Short was already published successfully.");return
         try:
             thumb=lp.parent/"thumbnail.jpg";make_thumbnail(lp,ls["title"],thumb,ls.get("thumbnail_text"));_validate_long(lp,thumb);upload_long(lp,title=ls["title"],description=ls["description"].rstrip()+SOURCE_CREDIT,tags=ls["tags"],thumbnail_path=thumb);_mark_published(s,lt);_record_long_form_publish(s)
-        except (RuntimeError,ValueError,OSError) as exc:
-            log.warning("Long-form deferred after build/QC/upload preparation failure: %s",exc)
-            return
+            cp=CHECKPOINT_DIR/(lt.lower().replace(" ","_")+".json")
+            if cp.exists():cp.unlink()
+        except (RuntimeError,ValueError,OSError) as exc:log.warning("Long-form deferred after build/QC/upload preparation failure: %s",exc)
 if __name__=="__main__":main()
