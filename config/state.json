@@ -1,3 +1,69 @@
 {
-  "next_index": 0
+  "next_index": 0,
+  "published_topics": [
+    "the construction of the Eiffel Tower"
+  ],
+  "topic_cursor": 1,
+  "skipped_topics": {
+    "the Apollo 11 moon landing": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:06:32.480978+00:00"
+    },
+    "the fall of the Berlin Wall": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:06:47.390142+00:00"
+    },
+    "the Wright brothers' first flight": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6268, Requested 1741. Please try again in 67.499999ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:07:23.522874+00:00"
+    },
+    "the sinking of the Titanic": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:07:30.583866+00:00"
+    },
+    "the invention of the printing press": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6903, Requested 1741. Please try again in 4.83s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:08:05.383269+00:00"
+    },
+    "the discovery of King Tutankhamun's tomb": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:08:12.726010+00:00"
+    },
+    "the Wall Street Crash of 1929": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:08:36.209803+00:00"
+    },
+    "the building of the Panama Canal": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6322, Requested 1794. Please try again in 870ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:09:00.485398+00:00"
+    },
+    "the first transatlantic telegraph cable": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:09:07.401177+00:00"
+    },
+    "the Cuban Missile Crisis": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6894, Requested 1741. Please try again in 4.7625s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:09:54.534434+00:00"
+    },
+    "the Great Chicago Fire of 1871": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:10:01.243732+00:00"
+    },
+    "early submarine voyages": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6118, Requested 1892. Please try again in 75ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:10:25.552589+00:00"
+    },
+    "the construction of the Hoover Dam": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T07:10:32.649048+00:00"
+    },
+    "the D-Day landings": {
+      "reason": "Long-form outline has too few chapters",
+      "at": "2026-08-21T07:10:44.600151+00:00"
+    },
+    "the invention of the telephone": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6904, Requested 1894. Please try again in 5.985s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T07:11:08.859997+00:00"
+    }
+  }
 }
