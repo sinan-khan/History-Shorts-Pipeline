@@ -1,8 +1,6 @@
 name: History Shorts Pipeline
 
 on:
-  # Run once per day. pipeline.py persists the last successful long-form upload
-  # timestamp and only creates a documentary every 48 hours.
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
@@ -29,30 +27,29 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
           cache-dependency-path: requirements.txt
-
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
-
       - name: Run pipeline
         working-directory: src
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: "openai/gpt-oss-120b"
-          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID || secrets.YOUTUBE_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET || secrets.YOUTUBE_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN || secrets.YOUTUBE_REFRESH_TOKEN }}
+          EUROPEANA_API_KEY: ${{ secrets.EUROPEANA_API_KEY }}
+          NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
           DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '' }}
         run: python pipeline.py "${{ github.event.inputs.topic }}"
-
       - name: Persist topic and publishing state
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
