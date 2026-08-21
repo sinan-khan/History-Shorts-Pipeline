@@ -2,9 +2,10 @@
   "next_index": 0,
   "published_topics": [
     "the construction of the Eiffel Tower",
-    "the construction of the Golden Gate Bridge"
+    "the construction of the Golden Gate Bridge",
+    "the Dust Bowl migration"
   ],
-  "topic_cursor": 21,
+  "topic_cursor": 37,
   "skipped_topics": {
     "the Apollo 11 moon landing": {
       "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
@@ -141,6 +142,18 @@
     "the first Olympic Games of the modern era": {
       "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6377, Requested 1897. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
       "at": "2026-08-21T20:16:42.285892+00:00"
+    },
+    "the first heart transplant": {
+      "reason": "Long-form outline must contain exactly 9 chapters",
+      "at": "2026-08-21T21:45:24.871476+00:00"
+    },
+    "the sinking of the Lusitania": {
+      "reason": "Long-form outline must contain exactly 9 chapters",
+      "at": "2026-08-21T21:45:28.961358+00:00"
+    },
+    "the construction of the Empire State Building": {
+      "reason": "Long-form outline must contain exactly 9 chapters",
+      "at": "2026-08-21T21:45:45.026027+00:00"
     }
   }
 }
