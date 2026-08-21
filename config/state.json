@@ -1,9 +1,10 @@
 {
   "next_index": 0,
   "published_topics": [
-    "the construction of the Eiffel Tower"
+    "the construction of the Eiffel Tower",
+    "the construction of the Golden Gate Bridge"
   ],
-  "topic_cursor": 1,
+  "topic_cursor": 21,
   "skipped_topics": {
     "the Apollo 11 moon landing": {
       "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
@@ -64,6 +65,82 @@
     "the invention of the telephone": {
       "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6904, Requested 1894. Please try again in 5.985s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
       "at": "2026-08-21T07:11:08.859997+00:00"
+    },
+    "early aviation stunt shows": {
+      "reason": "visual preflight failed",
+      "at": "2026-08-21T19:46:58.614496+00:00"
+    },
+    "the California gold rush": {
+      "reason": "visual preflight failed",
+      "at": "2026-08-21T19:49:34.472235+00:00"
+    },
+    "early moon rover missions": {
+      "reason": "No suitable related rights-cleared visual for beat 1: Lunokhod 1 Soviet flag",
+      "at": "2026-08-21T19:56:19.604567+00:00"
+    },
+    "the race to the South Pole": {
+      "reason": "visual preflight failed",
+      "at": "2026-08-21T19:57:30.930842+00:00"
+    },
+    "the first radio broadcasts": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:11:41.013882+00:00"
+    },
+    "the Pony Express": {
+      "reason": "Long-form outline has too few chapters",
+      "at": "2026-08-21T20:11:53.036883+00:00"
+    },
+    "the invention of the automobile assembly line": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6274, Requested 1744. Please try again in 134.999999ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T20:12:28.851493+00:00"
+    },
+    "the Manhattan Project": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6908, Requested 1735. Please try again in 4.8225s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T20:12:59.285976+00:00"
+    },
+    "the first Antarctic expeditions": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6365, Requested 1752. Please try again in 877.5ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T20:13:30.672255+00:00"
+    },
+    "the building of the Suez Canal": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:13:37.170977+00:00"
+    },
+    "the Great Depression breadlines": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:13:59.991391+00:00"
+    },
+    "the first transcontinental railroad": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:14:13.409528+00:00"
+    },
+    "the Chernobyl disaster": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6245, Requested 1783. Please try again in 210ms. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T20:14:37.619419+00:00"
+    },
+    "the Berlin Airlift": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:14:44.896345+00:00"
+    },
+    "the first televised broadcasts": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:15:07.795843+00:00"
+    },
+    "the construction of Mount Rushmore": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:15:31.480231+00:00"
+    },
+    "the London Blitz": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:15:54.540910+00:00"
+    },
+    "the invention of the electric light bulb": {
+      "reason": "Groq request failed HTTP 400: {\"error\":{\"message\":\"Failed to validate JSON. Please adjust your prompt. See 'failed_generation' for more details.\",\"type\":\"invalid_request_error\",\"code\":\"json_validate_failed\",\"failed_generation\":\"\"}}\n",
+      "at": "2026-08-21T20:16:18.018218+00:00"
+    },
+    "the first Olympic Games of the modern era": {
+      "reason": "Groq request failed HTTP 429: {\"error\":{\"message\":\"Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01m08vh3saenhvmh1qk9bgw0qx` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Used 6377, Requested 1897. Please try again in 2.055s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n",
+      "at": "2026-08-21T20:16:42.285892+00:00"
     }
   }
 }
